@@ -4,8 +4,8 @@ namespace App\OpenApi\Paths;
 
 use OpenApi\Attributes as OA;
 
-#[OA\Tag(name: 'Reviews', description: 'Proposal reviews')]
-final class ReviewPaths
+#[OA\Tag(name: 'ProposalReviews', description: 'Proposal reviews')]
+final class ProposalReviewPaths
 {
     #[OA\Get(
         path: '/api/proposals/{proposal}/reviews',
@@ -25,7 +25,7 @@ final class ReviewPaths
             new OA\Response(
                 response: 200,
                 description: 'Paginated reviews',
-                content: new OA\JsonContent(ref: '#/components/schemas/PaginatedReviewResponse')
+                content: new OA\JsonContent(ref: '#/components/schemas/PaginatedProposalReviewSearchHitResponse')
             ),
             new OA\Response(response: 401, description: 'Unauthenticated'),
             new OA\Response(response: 403, description: 'Forbidden'),
@@ -41,7 +41,7 @@ final class ReviewPaths
         security: [['bearerAuth' => []]],
         requestBody: new OA\RequestBody(
             required: true,
-            content: new OA\JsonContent(ref: '#/components/schemas/ReviewUpsertRequest')
+            content: new OA\JsonContent(ref: '#/components/schemas/ProposalReviewUpsertRequest')
         ),
         tags: ['Reviews'],
         parameters: [

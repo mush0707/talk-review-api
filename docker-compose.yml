@@ -72,6 +72,24 @@ services:
       - esdata:/usr/share/elasticsearch/data
     networks:
       - talkreview
+  reverb:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: talkreview_reverb
+    working_dir: /var/www/html
+    volumes:
+      - ./:/var/www/html
+    env_file:
+      - .env
+    command: sh -lc "php artisan optimize:clear && php artisan reverb:start --host=0.0.0.0 --port=6001 --debug"
+    ports:
+      - "6001:6001"
+    depends_on:
+      - db
+      - redis
+    networks:
+      - talkreview
 networks:
   talkreview:
 

@@ -71,16 +71,30 @@ class ProposalService
         $bool = Query::bool();
 
         if ($data->search && trim($data->search) !== '') {
-            $bool->must(
-                Query::multiMatch()
-                    ->query($data->search)
-                    ->fields([
-                        'title^3',
-                        'description',
-                        'tag_names',
-                    ])
-                    ->fuzziness('AUTO')
-            );
+            $q = trim($data->search);
+
+            $should = Query::bool()
+                ->should(
+                    Query::wildcard()
+                        ->field('title')
+                        ->value('*' . mb_strtolower($q) . '*')
+                        ->caseInsensitive(true)
+                )
+                ->should(
+                    Query::wildcard()
+                        ->field('description')
+                        ->value('*' . mb_strtolower($q) . '*')
+                        ->caseInsensitive(true)
+                )
+                ->should(
+                    Query::wildcard()
+                        ->field('tag_names')
+                        ->value('*' . mb_strtolower($q) . '*')
+                        ->caseInsensitive(true)
+                )
+                ->minimumShouldMatch(1);
+
+            $bool->must($should);
         } else {
             $bool->must(Query::matchAll());
         }
@@ -97,7 +111,6 @@ class ProposalService
             $bool->filter(Query::term()->field('speaker_id')->value($user->id));
         }
 
-        // paginate via Scout
         return Proposal::searchQuery($bool)
             ->sort('created_at', 'desc')
             ->paginate($data->per_page, 'page', $data->page);
@@ -105,10 +118,6 @@ class ProposalService
 
     public function changeStatus(User $admin, Proposal $proposal, ProposalStatusChangeData $data): Proposal
     {
-        if (!$admin->hasRole('admin')) {
-            abort(403);
-        }
-
         $proposal->status = ProposalStatus::from($data->status);
         $proposal->save();
 

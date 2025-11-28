@@ -10,6 +10,6 @@ class Tag extends Model
 
     public function proposals(): BelongsToMany
     {
-        return $this->belongsToMany(Proposal::class, 'proposal_tag');
+        return $this->belongsToMany(Proposal::class, 'proposal_tags');
     }
 }

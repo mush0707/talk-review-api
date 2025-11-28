@@ -22,7 +22,8 @@ final class AuthPaths
                 description: 'Registered',
                 content: new OA\JsonContent(ref: '#/components/schemas/AuthTokenResponse')
             ),
-            new OA\Response(response: 422, description: 'Validation error')
+            new OA\Response(response: 422, description: 'Validation error'),
+            new OA\Response(response: 400, description: 'Bad request')
         ]
     )]
     public function register(): void {}
@@ -41,6 +42,7 @@ final class AuthPaths
             ),
             new OA\Response(response: 401, description: 'Unauthorized'),
             new OA\Response(response: 422, description: 'Already verified / validation error'),
+            new OA\Response(response: 400, description: 'Bad request')
         ]
     )]
     public function resendVerification(): void {}
@@ -76,7 +78,8 @@ final class AuthPaths
                 description: 'Logged in',
                 content: new OA\JsonContent(ref: '#/components/schemas/AuthTokenResponse')
             ),
-            new OA\Response(response: 422, description: 'Invalid credentials / validation error')
+            new OA\Response(response: 422, description: 'Invalid credentials / validation error'),
+            new OA\Response(response: 400, description: 'Bad request')
         ]
     )]
     public function login(): void {}

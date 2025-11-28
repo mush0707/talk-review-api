@@ -18,7 +18,7 @@ class TagSearchData extends Data
     {
         return [
             'search' => 'nullable|string|max:24',
-            'limit' => 'int|gte:20',
+            'limit' => 'int|gt:0',
         ];
     }
 }

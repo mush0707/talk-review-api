@@ -54,7 +54,6 @@ class Proposal extends Model
     {
         $tagIds = $this->tags->pluck('id')->values()->all();
         $tagNames = $this->tags->pluck('name')->values()->all();
-
         return [
             'id' => $this->id,
             'title' => $this->title,

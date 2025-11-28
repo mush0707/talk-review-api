@@ -32,7 +32,7 @@ final class ProposalPaths
             new OA\Response(
                 response: 200,
                 description: 'Paginated proposals',
-                content: new OA\JsonContent(ref: '#/components/schemas/PaginatedProposalResponse')
+                content: new OA\JsonContent(ref: '#/components/schemas/PaginatedProposalSearchHitResponse')
             ),
             new OA\Response(response: 401, description: 'Unauthenticated'),
             new OA\Response(response: 403, description: 'Forbidden / Email not verified'),
@@ -78,8 +78,8 @@ final class ProposalPaths
         responses: [
             new OA\Response(
                 response: 200,
-                description: 'Proposal',
-                content: new OA\JsonContent(ref: '#/components/schemas/Proposal')
+                description: 'Proposal + attachment download link (if exists)',
+                content: new OA\JsonContent(ref: '#/components/schemas/ProposalShowResponse')
             ),
             new OA\Response(response: 401, description: 'Unauthenticated'),
             new OA\Response(response: 403, description: 'Forbidden'),
@@ -87,6 +87,29 @@ final class ProposalPaths
         ]
     )]
     public function show(): void {}
+
+    #[OA\Get(
+        path: '/api/proposals/{proposal}/attachment',
+        operationId: 'proposalsDownloadAttachment',
+        summary: 'Download proposal attachment via temporary signed URL',
+        tags: ['Proposals'],
+        parameters: [
+            new OA\Parameter(name: 'proposal', in: 'path', required: true, schema: new OA\Schema(type: 'integer'), example: 4),
+        ],
+        responses: [
+            new OA\Response(
+                response: 200,
+                description: 'PDF file stream',
+                content: new OA\MediaType(
+                    mediaType: 'application/pdf',
+                    schema: new OA\Schema(type: 'string', format: 'binary')
+                )
+            ),
+            new OA\Response(response: 403, description: 'Invalid/expired signature'),
+            new OA\Response(response: 404, description: 'Not found'),
+        ]
+    )]
+    public function downloadAttachment(): void {}
 
     #[OA\Patch(
         path: '/api/proposals/{proposal}/status',

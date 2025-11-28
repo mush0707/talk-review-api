@@ -4,7 +4,8 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Collection;
-
+use Illuminate\Support\Facades\Storage;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 abstract class BaseApiController extends Controller
 {
     protected function success(mixed $data = [], int $status = 200, array $headers = []): JsonResponse
@@ -68,5 +69,20 @@ abstract class BaseApiController extends Controller
     protected function notFound(string $message = 'Not Found'): JsonResponse
     {
         return $this->fail($message, 404);
+    }
+
+    protected function downloadFromDisk(
+        string $disk,
+        string $path,
+        ?string $name = null,
+        array $headers = []
+    ): StreamedResponse {
+        if (!Storage::disk($disk)->exists($path)) {
+            abort(404, 'File not found');
+        }
+
+        $name ??= basename($path);
+
+        return Storage::disk($disk)->download($path, $name, $headers);
     }
 }

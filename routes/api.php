@@ -6,6 +6,7 @@ use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\ProposalController;
 use App\Http\Controllers\Api\ProposalReviewController;
 use App\Http\Controllers\Api\TagController;
+use App\Http\Controllers\Api\NotificationController;
 
 // Public health
 Route::get('/health', fn() => response()->json(['ok' => true]));
@@ -52,4 +53,13 @@ Route::middleware(['auth:sanctum', 'verified.email'])->group(function () {
 
     Route::put('/proposals/{proposal}/reviews/me', [ProposalReviewController::class, 'upsert'])
         ->middleware(['permission:reviews.upsert', 'can:upsertReview,proposal']);
+
+    Route::get('/notifications', [NotificationController::class, 'index']);
+    Route::post('/notifications/read-all', [NotificationController::class, 'readAll']);
+    Route::get('/notifications/unread-count', [NotificationController::class, 'unreadCount']);
+
 });
+
+Route::get('/proposals/{proposal}/attachment', [ProposalController::class, 'downloadAttachment'])
+    ->middleware(['signed', 'throttle:10,1'])
+    ->name('proposals.attachment.download');

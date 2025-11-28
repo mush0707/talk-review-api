@@ -1,59 +1,140 @@
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
+# Talk Review API (Backend)
 
-<p align="center">
-<a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
-</p>
+Laravel 12 + Sanctum + Spatie Permissions + Scout (Elasticsearch) + Reverb (WebSockets) + MailHog.
 
-## About Laravel
+## Services (Docker)
+- **nginx** → http://localhost:8080
+- **mysql** → localhost:33067
+- **redis** → localhost:6380
+- **mailhog UI** → http://localhost:8025
+- **elasticsearch** → http://localhost:9200
+- **reverb** (ws) → ws://localhost:6001
 
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
+## Quick start (Docker)
+From the **backend repo root**:
 
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
+1) Create `.env`
+```bash
+cp .env.example .env
+```
+Fill (or keep) values. At minimum, make sure these match your compose:
+```dotenv
+APP_URL=http://localhost:8080
+FRONTEND_URL=http://localhost:5173
 
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
+DB_HOST=db
+DB_PORT=3306
+DB_DATABASE=talkreview
+DB_USERNAME=talkreview
+DB_PASSWORD=talkreview
 
-## Learning Laravel
+BROADCAST_CONNECTION=reverb
+REVERB_APP_ID=talkreview
+REVERB_APP_KEY=localkey123
+REVERB_APP_SECRET=localsecret123
+REVERB_SERVER_HOST=0.0.0.0
+REVERB_SERVER_PORT=6001
+REVERB_HOST=localhost
+REVERB_PORT=6001
+REVERB_SCHEME=http
+REVERB_ALLOWED_ORIGINS=http://localhost:5173
+```
 
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework. You can also check out [Laravel Learn](https://laravel.com/learn), where you will be guided through building a modern Laravel application.
+2) Build + start containers
+```bash
+docker compose up -d --build
+```
 
-If you don't feel like reading, [Laracasts](https://laracasts.com) can help. Laracasts contains thousands of video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
+3) Install PHP deps
+```bash
+docker exec -it talkreview_app sh -lc "composer install"
+```
 
-## Laravel Sponsors
+4) Generate key (if needed)
+```bash
+docker exec -it talkreview_app sh -lc "php artisan key:generate"
+```
 
-We would like to extend our thanks to the following sponsors for funding Laravel development. If you are interested in becoming a sponsor, please visit the [Laravel Partners program](https://partners.laravel.com).
+5) Migrate + seed
+```bash
+docker exec -it talkreview_app sh -lc "php artisan migrate --seed"
+docker exec -it talkreview_app sh -lc "php artisan elastic:migrate"
+```
 
-### Premium Partners
+6) (Optional) Storage symlink
+```bash
+docker exec -it talkreview_app sh -lc "php artisan storage:link"
+```
 
-- **[Vehikl](https://vehikl.com)**
-- **[Tighten Co.](https://tighten.co)**
-- **[Kirschbaum Development Group](https://kirschbaumdevelopment.com)**
-- **[64 Robots](https://64robots.com)**
-- **[Curotec](https://www.curotec.com/services/technologies/laravel)**
-- **[DevSquad](https://devsquad.com/hire-laravel-developers)**
-- **[Redberry](https://redberry.international/laravel-development)**
-- **[Active Logic](https://activelogic.com)**
+7) Verify health
+```bash
+curl -s http://localhost:8080/api/health
+```
 
-## Contributing
+## Realtime notifications (Reverb)
+- Reverb server runs in the `reverb` service:
+    - Port: **6001**
+    - Pusher-protocol endpoint: **/app/{APP_KEY}**
+- Auth endpoint for private channels:
+    - `POST http://localhost:8080/broadcasting/auth` (Sanctum bearer token)
 
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
+Quick WS smoke test:
+```bash
+wscat -H "Origin: http://localhost:5173" -c "ws://localhost:6001/app/localkey123?protocol=7&client=js&version=8.4.0&flash=false"
+```
 
-## Code of Conduct
+## Elasticsearch
+Elasticsearch runs in Docker at:
+```bash
+curl -s http://localhost:9200
+```
 
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
+This project uses **Laravel Scout** with the `elastic` driver (see `.env` keys: `SCOUT_DRIVER`, `ELASTICSEARCH_HOST`).
 
-## Security Vulnerabilities
+Typical flow (if your app uses Scout indexing):
+```bash
+docker exec -it talkreview_app sh -lc "php artisan scout:import 'App\\Models\\Proposal'"
+docker exec -it talkreview_app sh -lc "php artisan scout:import 'App\\Models\\ProposalReview'"
+```
 
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
+If your repo contains **Elasticsearch migrations**, run the migration command provided by the package used in your project:
+```bash
+docker exec -it talkreview_app sh -lc "php artisan | grep -i elastic"
+```
+Then run the appropriate command you see (for example, some packages use `elastic:migrate`).
 
-## License
+## Mail (MailHog)
+Outgoing emails (verification links) are captured by MailHog:
+- UI: http://localhost:8025
+- SMTP: `mailhog:1025`
 
-The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+## Swagger / OpenAPI
+If L5-Swagger is installed/configured, open the API docs in your backend:
+- common path: `http://localhost:8080/api/documentation`
+
+(Exact URL depends on your `l5-swagger` config.)
+
+## Running tests
+```bash
+docker exec -it talkreview_app sh -lc "php artisan test"
+```
+
+## Common troubleshooting
+### 403 on /broadcasting/auth
+- Ensure frontend sends `Authorization: Bearer <token>`
+- Ensure backend CORS allows `http://localhost:5173` for `/broadcasting/auth`
+- Ensure `BroadcastServiceProvider` has:
+    - `Broadcast::routes(['middleware' => ['auth:sanctum']]);`
+
+### “Failed to connect to localhost:6001” from backend
+Inside Docker, `localhost` means inside the **api container**.  
+If the backend needs to call Reverb internally, use the **service name**:
+- `REVERB_HOST=reverb` (container-to-container)
+  While the browser should keep using:
+- `ws://localhost:6001` (host-to-container)
+
+If you want both to work, use env separation (server bind vs client host) exactly like:
+- `REVERB_SERVER_HOST=0.0.0.0`
+- `REVERB_SERVER_PORT=6001`
+- `REVERB_HOST=localhost` (browser)
+  and in `config/broadcasting.php` for server-side events, prefer `host` as `reverb` inside Docker if needed.

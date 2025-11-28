@@ -30,7 +30,7 @@ class AuthController extends BaseApiController
             $result = $auth->register($data);
             return $this->success($result);
         } catch (AuthException $e) {
-            return $this->fail($e->getMessage(), Response::HTTP_UNPROCESSABLE_ENTITY);
+            return $this->fail($e->getMessage(), Response::HTTP_BAD_REQUEST);
         }
     }
 
@@ -40,7 +40,7 @@ class AuthController extends BaseApiController
         if (!$user) return $this->unauthorized();
 
         if ($user->hasVerifiedEmail()) {
-            return $this->fail('Email already verified', Response::HTTP_UNPROCESSABLE_ENTITY);
+            return $this->fail('Email already verified', Response::HTTP_BAD_REQUEST);
         }
 
         $user->sendEmailVerificationNotification();
@@ -73,7 +73,7 @@ class AuthController extends BaseApiController
             $result = $auth->login($data);
             return $this->success($result);
         } catch (AuthException $e) {
-            return $this->fail($e->getMessage(), Response::HTTP_UNPROCESSABLE_ENTITY);
+            return $this->fail($e->getMessage(), Response::HTTP_BAD_REQUEST);
         }
     }
 

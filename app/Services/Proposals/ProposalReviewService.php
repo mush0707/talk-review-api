@@ -33,7 +33,7 @@ class ProposalReviewService
             ]
         );
 
-        // Index review in ES (separate index)
+        $review->fresh();
         $review->searchable();
 
         // Notify owner + admins
@@ -42,7 +42,7 @@ class ProposalReviewService
         return $review;
     }
 
-    public function searchForProposal(Proposal $proposal, ReviewSearchData $data): LengthAwarePaginator
+    public function search(Proposal $proposal, ReviewSearchData $data): LengthAwarePaginator
     {
         $bool = Query::bool();
 
@@ -50,11 +50,19 @@ class ProposalReviewService
         $bool->filter(Query::term()->field('proposal_id')->value($proposal->id));
 
         if ($data->search && trim($data->search) !== '') {
-            $bool->must(
-                Query::match()
-                    ->field('comment')
-                    ->query($data->search)
-            );
+            $q = trim($data->search);
+
+            $should = Query::bool()
+                ->should(
+                    // substring match (so "as" finds "asd")
+                    Query::wildcard()
+                        ->field('comment')
+                        ->value('*' . mb_strtolower($q) . '*')
+                        ->caseInsensitive(true)
+                )
+                ->minimumShouldMatch(1);
+
+            $bool->must($should);
         } else {
             $bool->must(Query::matchAll());
         }

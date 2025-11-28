@@ -27,7 +27,7 @@ class ResendVerificationTest extends TestCase
         Notification::assertSentTo($user, VerifyEmail::class);
     }
 
-    public function test_returns_422_if_already_verified(): void
+    public function test_returns_400_if_already_verified(): void
     {
         Notification::fake();
 
@@ -36,6 +36,6 @@ class ResendVerificationTest extends TestCase
 
         $this->withHeader('Authorization', "Bearer {$token}")
             ->postJson('/api/auth/email/verification-notification')
-            ->assertStatus(422);
+            ->assertStatus(400);
     }
 }

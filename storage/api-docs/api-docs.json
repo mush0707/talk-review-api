@@ -41,6 +41,9 @@
                     },
                     "422": {
                         "description": "Validation error"
+                    },
+                    "400": {
+                        "description": "Bad request"
                     }
                 }
             }
@@ -68,6 +71,9 @@
                     },
                     "422": {
                         "description": "Already verified / validation error"
+                    },
+                    "400": {
+                        "description": "Bad request"
                     }
                 },
                 "security": [
@@ -142,6 +148,9 @@
                     },
                     "422": {
                         "description": "Invalid credentials / validation error"
+                    },
+                    "400": {
+                        "description": "Bad request"
                     }
                 }
             }
@@ -195,6 +204,126 @@
                     },
                     "401": {
                         "description": "Unauthorized"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/api/notifications": {
+            "get": {
+                "tags": [
+                    "Notifications"
+                ],
+                "summary": "List latest notifications for current user",
+                "description": "Returns latest notifications and unread count. Supports optional search.",
+                "operationId": "notificationsIndex",
+                "parameters": [
+                    {
+                        "name": "limit",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "type": "integer",
+                            "default": 20,
+                            "minimum": 1
+                        },
+                        "example": 20
+                    },
+                    {
+                        "name": "search",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "type": "string"
+                        },
+                        "example": "proposal"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Notifications list + unread count",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/NotificationsListResponse"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthenticated"
+                    },
+                    "403": {
+                        "description": "Forbidden / Email not verified"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/api/notifications/read-all": {
+            "post": {
+                "tags": [
+                    "Notifications"
+                ],
+                "summary": "Mark all notifications as read",
+                "operationId": "notificationsReadAll",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/GenericOkResponse"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthenticated"
+                    },
+                    "403": {
+                        "description": "Forbidden / Email not verified"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/api/notifications/unread-count": {
+            "get": {
+                "tags": [
+                    "Notifications"
+                ],
+                "summary": "Get unread notifications count",
+                "description": "Use this for bell badge refresh (e.g., on every page refresh).",
+                "operationId": "notificationsUnreadCount",
+                "responses": {
+                    "200": {
+                        "description": "Unread count",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/NotificationsUnreadCountResponse"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthenticated"
+                    },
+                    "403": {
+                        "description": "Forbidden / Email not verified"
                     }
                 },
                 "security": [
@@ -279,7 +408,7 @@
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/PaginatedProposalResponse"
+                                    "$ref": "#/components/schemas/PaginatedProposalSearchHitResponse"
                                 }
                             }
                         }
@@ -361,11 +490,11 @@
                 ],
                 "responses": {
                     "200": {
-                        "description": "Proposal",
+                        "description": "Proposal + attachment download link (if exists)",
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/Proposal"
+                                    "$ref": "#/components/schemas/ProposalShowResponse"
                                 }
                             }
                         }
@@ -385,6 +514,45 @@
                         "bearerAuth": []
                     }
                 ]
+            }
+        },
+        "/api/proposals/{proposal}/attachment": {
+            "get": {
+                "tags": [
+                    "Proposals"
+                ],
+                "summary": "Download proposal attachment via temporary signed URL",
+                "operationId": "proposalsDownloadAttachment",
+                "parameters": [
+                    {
+                        "name": "proposal",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        },
+                        "example": 4
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "PDF file stream",
+                        "content": {
+                            "application/pdf": {
+                                "schema": {
+                                    "type": "string",
+                                    "format": "binary"
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Invalid/expired signature"
+                    },
+                    "404": {
+                        "description": "Not found"
+                    }
+                }
             }
         },
         "/api/proposals/{proposal}/status": {
@@ -514,7 +682,7 @@
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/PaginatedReviewResponse"
+                                    "$ref": "#/components/schemas/PaginatedProposalReviewSearchHitResponse"
                                 }
                             }
                         }
@@ -559,7 +727,7 @@
                     "content": {
                         "application/json": {
                             "schema": {
-                                "$ref": "#/components/schemas/ReviewUpsertRequest"
+                                "$ref": "#/components/schemas/ProposalReviewUpsertRequest"
                             }
                         }
                     }
@@ -830,6 +998,106 @@
                 },
                 "type": "object"
             },
+            "LaravelPaginationLink": {
+                "required": [
+                    "url",
+                    "label",
+                    "active"
+                ],
+                "properties": {
+                    "url": {
+                        "type": "string",
+                        "example": "http://localhost:8080/api/proposals?page=1",
+                        "nullable": true
+                    },
+                    "label": {
+                        "type": "string",
+                        "example": "1"
+                    },
+                    "page": {
+                        "type": "integer",
+                        "example": 1,
+                        "nullable": true
+                    },
+                    "active": {
+                        "type": "boolean",
+                        "example": true
+                    }
+                },
+                "type": "object"
+            },
+            "NotificationItem": {
+                "required": [
+                    "id",
+                    "type",
+                    "created_at",
+                    "read_at",
+                    "data"
+                ],
+                "properties": {
+                    "id": {
+                        "type": "string",
+                        "example": "9b7b5bd6-8f5f-4f85-9b47-7a2f7f29a2d1"
+                    },
+                    "type": {
+                        "type": "string",
+                        "example": "App\\Services\\Proposals\\Notifications\\ProposalSubmittedNotification"
+                    },
+                    "created_at": {
+                        "type": "string",
+                        "format": "date-time",
+                        "example": "2025-11-28T10:20:00.000000Z",
+                        "nullable": true
+                    },
+                    "read_at": {
+                        "type": "string",
+                        "format": "date-time",
+                        "example": null,
+                        "nullable": true
+                    },
+                    "data": {
+                        "type": "object",
+                        "example": {
+                            "type": "proposal_submitted",
+                            "proposal_id": 4,
+                            "title": "Modern Laravel at Scale"
+                        },
+                        "additionalProperties": true
+                    }
+                },
+                "type": "object"
+            },
+            "NotificationsListResponse": {
+                "required": [
+                    "items",
+                    "unread"
+                ],
+                "properties": {
+                    "items": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/NotificationItem"
+                        }
+                    },
+                    "unread": {
+                        "type": "integer",
+                        "example": 3
+                    }
+                },
+                "type": "object"
+            },
+            "NotificationsUnreadCountResponse": {
+                "required": [
+                    "unread"
+                ],
+                "properties": {
+                    "unread": {
+                        "type": "integer",
+                        "example": 3
+                    }
+                },
+                "type": "object"
+            },
             "PaginationMeta": {
                 "required": [
                     "current_page",
@@ -857,6 +1125,233 @@
                 },
                 "type": "object"
             },
+            "ProposalReview": {
+                "required": [
+                    "id",
+                    "proposal_id",
+                    "reviewer_id",
+                    "rating"
+                ],
+                "properties": {
+                    "id": {
+                        "type": "integer",
+                        "example": 10
+                    },
+                    "proposal_id": {
+                        "type": "integer",
+                        "example": 4
+                    },
+                    "reviewer_id": {
+                        "type": "integer",
+                        "example": 2
+                    },
+                    "rating": {
+                        "type": "integer",
+                        "example": 5
+                    },
+                    "comment": {
+                        "type": "string",
+                        "example": "Great talk.",
+                        "nullable": true
+                    },
+                    "created_at": {
+                        "type": "string",
+                        "format": "date-time",
+                        "example": "2025-11-27T22:12:00.000000Z",
+                        "nullable": true
+                    },
+                    "updated_at": {
+                        "type": "string",
+                        "format": "date-time",
+                        "example": "2025-11-27T22:12:00.000000Z",
+                        "nullable": true
+                    }
+                },
+                "type": "object"
+            },
+            "ProposalReviewSearchDocumentContent": {
+                "required": [
+                    "id",
+                    "proposal_id",
+                    "reviewer_id",
+                    "rating",
+                    "comment",
+                    "created_at"
+                ],
+                "properties": {
+                    "id": {
+                        "type": "integer",
+                        "example": 10
+                    },
+                    "proposal_id": {
+                        "type": "integer",
+                        "example": 4
+                    },
+                    "reviewer_id": {
+                        "type": "integer",
+                        "example": 2
+                    },
+                    "rating": {
+                        "type": "integer",
+                        "example": 4
+                    },
+                    "comment": {
+                        "type": "string",
+                        "example": "Nice structure, add more examples.",
+                        "nullable": true
+                    },
+                    "created_at": {
+                        "type": "string",
+                        "format": "date-time",
+                        "example": "2025-11-27T22:12:00+00:00"
+                    }
+                },
+                "type": "object"
+            },
+            "ProposalReviewSearchDocument": {
+                "required": [
+                    "id",
+                    "content"
+                ],
+                "properties": {
+                    "id": {
+                        "type": "string",
+                        "example": "10"
+                    },
+                    "content": {
+                        "$ref": "#/components/schemas/ProposalReviewSearchDocumentContent"
+                    }
+                },
+                "type": "object"
+            },
+            "ProposalReviewSearchHit": {
+                "required": [
+                    "model",
+                    "index_name",
+                    "document",
+                    "highlight",
+                    "score"
+                ],
+                "properties": {
+                    "model": {
+                        "$ref": "#/components/schemas/ProposalReview"
+                    },
+                    "index_name": {
+                        "type": "string",
+                        "example": "proposal_reviews"
+                    },
+                    "document": {
+                        "$ref": "#/components/schemas/ProposalReviewSearchDocument"
+                    },
+                    "highlight": {
+                        "type": "object",
+                        "example": null,
+                        "nullable": true
+                    },
+                    "score": {
+                        "type": "number",
+                        "format": "float",
+                        "example": null,
+                        "nullable": true
+                    }
+                },
+                "type": "object"
+            },
+            "PaginatedProposalReviewSearchHitResponse": {
+                "required": [
+                    "current_page",
+                    "data",
+                    "last_page",
+                    "links",
+                    "path",
+                    "per_page",
+                    "total"
+                ],
+                "properties": {
+                    "current_page": {
+                        "type": "integer",
+                        "example": 1
+                    },
+                    "data": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/ProposalReviewSearchHit"
+                        }
+                    },
+                    "first_page_url": {
+                        "type": "string",
+                        "example": "http://localhost:8080/api/proposals/4/reviews?page=1",
+                        "nullable": true
+                    },
+                    "from": {
+                        "type": "integer",
+                        "example": 1,
+                        "nullable": true
+                    },
+                    "last_page": {
+                        "type": "integer",
+                        "example": 1
+                    },
+                    "last_page_url": {
+                        "type": "string",
+                        "example": "http://localhost:8080/api/proposals/4/reviews?page=1",
+                        "nullable": true
+                    },
+                    "links": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/LaravelPaginationLink"
+                        }
+                    },
+                    "next_page_url": {
+                        "type": "string",
+                        "example": null,
+                        "nullable": true
+                    },
+                    "path": {
+                        "type": "string",
+                        "example": "http://localhost:8080/api/proposals/4/reviews"
+                    },
+                    "per_page": {
+                        "type": "integer",
+                        "example": 10
+                    },
+                    "prev_page_url": {
+                        "type": "string",
+                        "example": null,
+                        "nullable": true
+                    },
+                    "to": {
+                        "type": "integer",
+                        "example": 2,
+                        "nullable": true
+                    },
+                    "total": {
+                        "type": "integer",
+                        "example": 2
+                    }
+                },
+                "type": "object"
+            },
+            "ProposalReviewUpsertRequest": {
+                "required": [
+                    "rating"
+                ],
+                "properties": {
+                    "rating": {
+                        "type": "integer",
+                        "maximum": 5,
+                        "minimum": 1,
+                        "example": 5
+                    },
+                    "comment": {
+                        "type": "string",
+                        "example": "Great talk.",
+                        "nullable": true
+                    }
+                },
+                "type": "object"
+            },
             "Proposal": {
                 "required": [
                     "id",
@@ -868,11 +1363,80 @@
                 "properties": {
                     "id": {
                         "type": "integer",
-                        "example": 10
+                        "example": 4
                     },
                     "speaker_id": {
                         "type": "integer",
                         "example": 1
+                    },
+                    "title": {
+                        "type": "string",
+                        "example": "Modern Laravel at Scale"
+                    },
+                    "description": {
+                        "type": "string",
+                        "example": "We will discuss queues, caching, and architecture..."
+                    },
+                    "attachment_path": {
+                        "type": "string",
+                        "example": null,
+                        "nullable": true
+                    },
+                    "status": {
+                        "type": "string",
+                        "enum": [
+                            "pending",
+                            "approved",
+                            "rejected"
+                        ],
+                        "example": "pending"
+                    },
+                    "tag_names": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        },
+                        "example": [
+                            "Technology",
+                            "Business"
+                        ],
+                        "nullable": true
+                    },
+                    "reviews_count": {
+                        "type": "integer",
+                        "example": 2,
+                        "nullable": true
+                    },
+                    "created_at": {
+                        "type": "string",
+                        "format": "date-time",
+                        "example": "2025-11-27T22:08:46.000000Z",
+                        "nullable": true
+                    },
+                    "updated_at": {
+                        "type": "string",
+                        "format": "date-time",
+                        "example": "2025-11-27T22:08:46.000000Z",
+                        "nullable": true
+                    }
+                },
+                "type": "object"
+            },
+            "ProposalSearchDocumentContent": {
+                "required": [
+                    "id",
+                    "title",
+                    "description",
+                    "status",
+                    "speaker_id",
+                    "tag_ids",
+                    "tag_names",
+                    "created_at"
+                ],
+                "properties": {
+                    "id": {
+                        "type": "integer",
+                        "example": 4
                     },
                     "title": {
                         "type": "string",
@@ -891,34 +1455,153 @@
                         ],
                         "example": "pending"
                     },
-                    "attachment_path": {
-                        "type": "string",
-                        "example": "proposals/abc123.pdf",
-                        "nullable": true
+                    "speaker_id": {
+                        "type": "integer",
+                        "example": 1
                     },
-                    "tags": {
+                    "tag_ids": {
                         "type": "array",
                         "items": {
-                            "$ref": "#/components/schemas/Tag"
+                            "type": "integer"
                         },
-                        "nullable": true
+                        "example": []
                     },
-                    "reviews_count": {
-                        "type": "integer",
-                        "example": 2,
-                        "nullable": true
+                    "tag_names": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        },
+                        "example": []
                     },
                     "created_at": {
                         "type": "string",
                         "format": "date-time",
-                        "example": "2025-11-27T12:00:00+00:00",
+                        "example": "2025-11-27T22:08:46+00:00"
+                    }
+                },
+                "type": "object"
+            },
+            "ProposalSearchDocument": {
+                "required": [
+                    "id",
+                    "content"
+                ],
+                "properties": {
+                    "id": {
+                        "type": "string",
+                        "example": "4"
+                    },
+                    "content": {
+                        "$ref": "#/components/schemas/ProposalSearchDocumentContent"
+                    }
+                },
+                "type": "object"
+            },
+            "ProposalSearchHit": {
+                "required": [
+                    "model",
+                    "index_name",
+                    "document",
+                    "highlight",
+                    "score"
+                ],
+                "properties": {
+                    "model": {
+                        "$ref": "#/components/schemas/Proposal"
+                    },
+                    "index_name": {
+                        "type": "string",
+                        "example": "proposals"
+                    },
+                    "document": {
+                        "$ref": "#/components/schemas/ProposalSearchDocument"
+                    },
+                    "highlight": {
+                        "type": "object",
+                        "example": null,
                         "nullable": true
                     },
-                    "updated_at": {
-                        "type": "string",
-                        "format": "date-time",
-                        "example": "2025-11-27T12:10:00+00:00",
+                    "score": {
+                        "type": "number",
+                        "format": "float",
+                        "example": null,
                         "nullable": true
+                    }
+                },
+                "type": "object"
+            },
+            "PaginatedProposalSearchHitResponse": {
+                "required": [
+                    "current_page",
+                    "data",
+                    "last_page",
+                    "links",
+                    "path",
+                    "per_page",
+                    "total"
+                ],
+                "properties": {
+                    "current_page": {
+                        "type": "integer",
+                        "example": 1
+                    },
+                    "data": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/ProposalSearchHit"
+                        }
+                    },
+                    "first_page_url": {
+                        "type": "string",
+                        "example": "http://localhost:8080/api/proposals?page=1",
+                        "nullable": true
+                    },
+                    "from": {
+                        "type": "integer",
+                        "example": 1,
+                        "nullable": true
+                    },
+                    "last_page": {
+                        "type": "integer",
+                        "example": 1
+                    },
+                    "last_page_url": {
+                        "type": "string",
+                        "example": "http://localhost:8080/api/proposals?page=1",
+                        "nullable": true
+                    },
+                    "links": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/LaravelPaginationLink"
+                        }
+                    },
+                    "next_page_url": {
+                        "type": "string",
+                        "example": null,
+                        "nullable": true
+                    },
+                    "path": {
+                        "type": "string",
+                        "example": "http://localhost:8080/api/proposals"
+                    },
+                    "per_page": {
+                        "type": "integer",
+                        "example": 10
+                    },
+                    "prev_page_url": {
+                        "type": "string",
+                        "example": null,
+                        "nullable": true
+                    },
+                    "to": {
+                        "type": "integer",
+                        "example": 2,
+                        "nullable": true
+                    },
+                    "total": {
+                        "type": "integer",
+                        "example": 2
                     }
                 },
                 "type": "object"
@@ -985,103 +1668,40 @@
                 },
                 "type": "object"
             },
-            "PaginatedProposalResponse": {
+            "TemporaryDownloadLink": {
                 "required": [
-                    "data",
-                    "meta"
+                    "url",
+                    "expires_at"
                 ],
                 "properties": {
-                    "data": {
-                        "type": "array",
-                        "items": {
-                            "$ref": "#/components/schemas/Proposal"
-                        }
-                    },
-                    "meta": {
-                        "$ref": "#/components/schemas/PaginationMeta"
-                    }
-                },
-                "type": "object"
-            },
-            "ProposalReview": {
-                "required": [
-                    "id",
-                    "proposal_id",
-                    "reviewer_id",
-                    "rating"
-                ],
-                "properties": {
-                    "id": {
-                        "type": "integer",
-                        "example": 99
-                    },
-                    "proposal_id": {
-                        "type": "integer",
-                        "example": 10
-                    },
-                    "reviewer_id": {
-                        "type": "integer",
-                        "example": 5
-                    },
-                    "rating": {
-                        "type": "integer",
-                        "maximum": 5,
-                        "minimum": 1,
-                        "example": 5
-                    },
-                    "comment": {
+                    "url": {
                         "type": "string",
-                        "example": "Strong topic, good structure.",
-                        "nullable": true
+                        "example": "http://localhost:8080/api/proposals/4/attachment?expires=...&signature=..."
                     },
-                    "created_at": {
+                    "expires_at": {
                         "type": "string",
                         "format": "date-time",
-                        "example": "2025-11-27T12:30:00+00:00",
-                        "nullable": true
-                    },
-                    "updated_at": {
-                        "type": "string",
-                        "format": "date-time",
-                        "example": "2025-11-27T12:35:00+00:00",
-                        "nullable": true
+                        "example": "2025-11-28T10:20:00+00:00"
                     }
                 },
                 "type": "object"
             },
-            "ReviewUpsertRequest": {
+            "ProposalShowResponse": {
                 "required": [
-                    "rating"
+                    "proposal",
+                    "attachment"
                 ],
                 "properties": {
-                    "rating": {
-                        "type": "integer",
-                        "maximum": 5,
-                        "minimum": 1,
-                        "example": 4
+                    "proposal": {
+                        "$ref": "#/components/schemas/Proposal"
                     },
-                    "comment": {
-                        "type": "string",
-                        "example": "Nice, but needs more examples.",
+                    "attachment": {
+                        "oneOf": [
+                            {
+                                "$ref": "#/components/schemas/TemporaryDownloadLink"
+                            }
+                        ],
                         "nullable": true
-                    }
-                },
-                "type": "object"
-            },
-            "PaginatedReviewResponse": {
-                "required": [
-                    "data",
-                    "meta"
-                ],
-                "properties": {
-                    "data": {
-                        "type": "array",
-                        "items": {
-                            "$ref": "#/components/schemas/ProposalReview"
-                        }
-                    },
-                    "meta": {
-                        "$ref": "#/components/schemas/PaginationMeta"
                     }
                 },
                 "type": "object"
@@ -1123,16 +1743,20 @@
             "description": "Authentication endpoints"
         },
         {
+            "name": "Notifications",
+            "description": "User notifications (database + realtime broadcast)"
+        },
+        {
             "name": "Proposals",
             "description": "Talk proposals"
         },
         {
-            "name": "Reviews",
-            "description": "Proposal reviews"
-        },
-        {
             "name": "Tags",
             "description": "Tags library (autocomplete)"
+        },
+        {
+            "name": "Reviews",
+            "description": "Reviews"
         }
     ]
 }

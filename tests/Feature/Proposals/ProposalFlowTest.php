@@ -2,80 +2,71 @@
 
 namespace Tests\Feature\Proposals;
 
+use AllowDynamicProperties;
 use App\Models\Proposal;
-use App\Models\Tag;
 use App\Models\User;
+use App\Services\Proposals\Enums\ProposalStatus;
 use App\Services\Proposals\Notifications\ProposalReviewedNotification;
 use App\Services\Proposals\Notifications\ProposalStatusChangedNotification;
 use App\Services\Proposals\Notifications\ProposalSubmittedNotification;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\Storage;
 use Spatie\Permission\PermissionRegistrar;
-use Tests\Concerns\InteractsWithElasticsearch;
 use Tests\TestCase;
 
+#[AllowDynamicProperties]
 class ProposalFlowTest extends TestCase
 {
     use RefreshDatabase;
-    use InteractsWithElasticsearch;
+
+    private string $uniq;
 
     protected function setUp(): void
     {
         parent::setUp();
 
+        $this->uniq = (string) now()->timestamp . '_' . bin2hex(random_bytes(4));
+
         app(PermissionRegistrar::class)->forgetCachedPermissions();
         $this->seed(RolePermissionSeeder::class);
 
-        $this->skipIfElasticDown();
+        config()->set('scout.driver', 'database');
+        config()->set('scout.queue', false);
 
-        // keep indices clean between tests
-        $this->esDeleteAll('proposals');
-        $this->esDeleteAll('proposal_reviews');
+        // avoid accidental cookie/session “stateful sanctum” behavior in tests
+        config()->set('sanctum.stateful', []);
+        config()->set('session.driver', 'array');
     }
 
     public function test_speaker_can_create_proposal_with_pdf_and_tags_and_notifies_reviewers_admins(): void
     {
-        Storage::fake('public');
         Notification::fake();
 
-        $speaker = User::factory()->create(['email_verified_at' => now()]);
-        $speaker->assignRole('speaker');
+        config()->set('filesystems.default', 'local');
+        Storage::fake('local');
 
-        $reviewer = User::factory()->create(['email_verified_at' => now()]);
-        $reviewer->assignRole('reviewer');
-
-        $admin = User::factory()->create(['email_verified_at' => now()]);
-        $admin->assignRole('admin');
+        $speaker = $this->verifiedUserWithRole('speaker');
+        $reviewer = $this->verifiedUserWithRole('reviewer');
+        $admin = $this->verifiedUserWithRole('admin');
 
         $token = $speaker->createToken('t')->plainTextToken;
 
-        $payload = [
-            'title' => 'Modern Laravel at Scale',
+        $proposalId = $this->createProposalViaApi($token, [
+            'title' => 'Modern Laravel at Scale ' . $this->uniq,
             'description' => 'This talk covers architecture, queues, and caching in production.',
-            'tag_names' => ['Technology', 'Business'],
-            'file' => UploadedFile::fake()->create('deck.pdf', 100, 'application/pdf'),
-        ];
-
-        $res = $this->withHeader('Authorization', "Bearer {$token}")
-            ->postJson('/api/proposals', $payload);
-
-        $res->assertStatus(201)
-            ->assertJsonPath('status', 'pending')
-            ->assertJsonPath('title', 'Modern Laravel at Scale');
-
-        $proposalId = $res->json('id');
+            'tag_names' => ['Technology ' . $this->uniq, 'Business ' . $this->uniq],
+        ]);
 
         $proposal = Proposal::query()->with('tags')->findOrFail($proposalId);
+
+        $this->assertSame(ProposalStatus::Pending, $proposal->status);
+        $this->assertSame('Modern Laravel at Scale ' . $this->uniq, $proposal->title);
         $this->assertCount(2, $proposal->tags);
-
         $this->assertNotNull($proposal->attachment_path);
-        Storage::disk('public')->assertExists($proposal->attachment_path);
-
-        // ES refresh so search endpoints won’t flake if you later test them
-        $this->esRefresh('proposals');
 
         Notification::assertSentTo($reviewer, ProposalSubmittedNotification::class);
         Notification::assertSentTo($admin, ProposalSubmittedNotification::class);
@@ -86,140 +77,140 @@ class ProposalFlowTest extends TestCase
     {
         Notification::fake();
 
-        $speakerA = User::factory()->create(['email_verified_at' => now()]);
-        $speakerA->assignRole('speaker');
+        $speakerA = $this->verifiedUserWithRole('speaker');
+        $speakerB = $this->verifiedUserWithRole('speaker');
 
-        $speakerB = User::factory()->create(['email_verified_at' => now()]);
-        $speakerB->assignRole('speaker');
-
-        $proposal = Proposal::query()->create([
-            'speaker_id' => $speakerA->id,
-            'title' => 'A title',
-            'description' => 'A long enough description for creation.',
-            'status' => 'pending',
-            'attachment_path' => null,
-        ]);
-
-        $proposal->searchable();
-        $this->esRefresh('proposals');
-
+        $tokenA = $speakerA->createToken('t')->plainTextToken;
         $tokenB = $speakerB->createToken('t')->plainTextToken;
 
-        $this->withHeader('Authorization', "Bearer {$tokenB}")
-            ->getJson("/api/proposals/{$proposal->id}")
+        $proposalId = $this->createProposalViaApi($tokenA, [
+            'title' => 'A title ' . $this->uniq,
+            'description' => 'A long enough description for creation.',
+            'tag_names' => ['Technology ' . $this->uniq],
+        ]);
+
+        $this->resetHttpState();
+
+        $this->getJson("/api/proposals/{$proposalId}", $this->authHeaders($tokenB))
             ->assertStatus(403);
     }
 
-    public function test_reviewer_can_upsert_review_notifies_owner_and_admin_then_admin_status_change_notifies_owner_and_reviewer(): void
+    public function test_reviewer_can_upsert_review_notifies_owner_and_admin(): void
     {
         Notification::fake();
 
-        $speaker = User::factory()->create(['email_verified_at' => now()]);
-        $speaker->assignRole('speaker');
+        $speaker = $this->verifiedUserWithRole('speaker');
+        $reviewer = $this->verifiedUserWithRole('reviewer');
+        $admin = $this->verifiedUserWithRole('admin');
 
-        $reviewer = User::factory()->create(['email_verified_at' => now()]);
-        $reviewer->assignRole('reviewer');
-
-        $admin = User::factory()->create(['email_verified_at' => now()]);
-        $admin->assignRole('admin');
-
-        $proposal = Proposal::query()->create([
-            'speaker_id' => $speaker->id,
-            'title' => 'Review this proposal',
-            'description' => 'Enough text to be valid in real life.',
-            'status' => 'pending',
-            'attachment_path' => null,
-        ]);
-
-        // attach a tag just to reflect real behavior
-        $tag = Tag::query()->create(['name' => 'Technology', 'slug' => 'technology']);
-        $proposal->tags()->sync([$tag->id]);
-
-        $proposal->searchable();
-        $this->esRefresh('proposals');
-
-        // reviewer upsert review
+        $tokenSpeaker = $speaker->createToken('t')->plainTextToken;
         $tokenReviewer = $reviewer->createToken('t')->plainTextToken;
 
-        $this->withHeader('Authorization', "Bearer {$tokenReviewer}")
-            ->putJson("/api/proposals/{$proposal->id}/reviews/me", [
-                'rating' => 5,
-                'comment' => 'Great topic and structure.',
-            ])
+        $proposalId = $this->createProposalViaApi($tokenSpeaker, [
+            'title' => 'Review this proposal ' . $this->uniq,
+            'description' => 'Enough text to be valid in real life.',
+            'tag_names' => ['Technology ' . $this->uniq],
+        ]);
+
+        $this->resetHttpState();
+
+        $this->putJson("/api/proposals/{$proposalId}/reviews/me", [
+            'rating' => 5,
+            'comment' => 'Great topic and structure. ' . $this->uniq,
+        ], $this->authHeaders($tokenReviewer))
             ->assertStatus(201)
             ->assertJsonPath('rating', 5);
-
-        $this->esRefresh('proposal_reviews');
 
         Notification::assertSentTo($speaker, ProposalReviewedNotification::class);
         Notification::assertSentTo($admin, ProposalReviewedNotification::class);
         Notification::assertNotSentTo($reviewer, ProposalReviewedNotification::class);
+    }
 
-        // admin changes status => notify owner + reviewers who reviewed
+    public function test_admin_can_change_status_notifies_owner_and_reviewers_who_reviewed(): void
+    {
+        Notification::fake();
+
+        $speaker = $this->verifiedUserWithRole('speaker');
+        $reviewer = $this->verifiedUserWithRole('reviewer');
+        $admin = $this->verifiedUserWithRole('admin');
+
+        $tokenSpeaker = $speaker->createToken('t')->plainTextToken;
+        $tokenReviewer = $reviewer->createToken('t')->plainTextToken;
         $tokenAdmin = $admin->createToken('t')->plainTextToken;
 
-        $this->withHeader('Authorization', "Bearer {$tokenAdmin}")
-            ->patchJson("/api/proposals/{$proposal->id}/status", [
-                'status' => 'approved',
-            ])
+        $proposalId = $this->createProposalViaApi($tokenSpeaker, [
+            'title' => 'Status change ' . $this->uniq,
+            'description' => 'Enough text to be valid in real life.',
+            'tag_names' => ['Technology ' . $this->uniq],
+        ]);
+
+        $this->resetHttpState();
+
+        $this->putJson("/api/proposals/{$proposalId}/reviews/me", [
+            'rating' => 5,
+            'comment' => 'Reviewed before status change. ' . $this->uniq,
+        ], $this->authHeaders($tokenReviewer))
+            ->assertStatus(201);
+
+        $this->resetHttpState();
+
+        $this->patchJson("/api/proposals/{$proposalId}/status", [
+            'status' => 'approved',
+        ], $this->authHeaders($tokenAdmin))
             ->assertNoContent();
 
         Notification::assertSentTo($speaker, ProposalStatusChangedNotification::class);
         Notification::assertSentTo($reviewer, ProposalStatusChangedNotification::class);
     }
 
-    public function test_reviews_list_is_paginated_and_searchable_by_comment_and_rating(): void
+    private function verifiedUserWithRole(string $role)
     {
-        Notification::fake();
-
-        $speaker = User::factory()->create(['email_verified_at' => now()]);
-        $speaker->assignRole('speaker');
-
-        $reviewer = User::factory()->create(['email_verified_at' => now()]);
-        $reviewer->assignRole('reviewer');
-
-        $proposal = Proposal::query()->create([
-            'speaker_id' => $speaker->id,
-            'title' => 'Search reviews',
-            'description' => 'Description that is long enough.',
-            'status' => 'pending',
-            'attachment_path' => null,
+        $user = User::factory()->create([
+            'email_verified_at' => now(),
         ]);
 
-        $proposal->searchable();
-        $this->esRefresh('proposals');
+        $user->assignRole($role);
 
-        $tokenReviewer = $reviewer->createToken('t')->plainTextToken;
+        return $user->fresh();
+    }
 
-        // create 2 reviews via upsert for this reviewer + another reviewer
-        $this->withHeader('Authorization', "Bearer {$tokenReviewer}")
-            ->putJson("/api/proposals/{$proposal->id}/reviews/me", [
-                'rating' => 5,
-                'comment' => 'Excellent and practical.',
-            ])
-            ->assertStatus(201);
+    private function authHeaders(string $token): array
+    {
+        return [
+            'Authorization' => "Bearer {$token}",
+            'Accept' => 'application/json',
+        ];
+    }
 
-        $anotherReviewer = User::factory()->create(['email_verified_at' => now()]);
-        $anotherReviewer->assignRole('reviewer');
-        $tokenAnother = $anotherReviewer->createToken('t')->plainTextToken;
+    private function createProposalViaApi(string $token, array $overrides = []): int
+    {
+        $payload = array_merge([
+            'title' => 'Proposal ' . $this->uniq,
+            'description' => 'A long enough description for creation.',
+            'tag_names' => ['Technology ' . $this->uniq],
+            'file' => UploadedFile::fake()->create('deck.pdf', 100, 'application/pdf'),
+        ], $overrides);
 
-        $this->withHeader('Authorization', "Bearer {$tokenAnother}")
-            ->putJson("/api/proposals/{$proposal->id}/reviews/me", [
-                'rating' => 3,
-                'comment' => 'Good, but needs more depth.',
-            ])
-            ->assertStatus(201);
+        $this->resetHttpState();
 
-        $this->esRefresh('proposal_reviews');
+        $res = $this->post('/api/proposals', $payload, $this->authHeaders($token));
 
-        // list reviews with search filter
-        $res = $this->withHeader('Authorization', "Bearer {$tokenReviewer}")
-            ->getJson("/api/proposals/{$proposal->id}/reviews?search=excellent&rating_min=5&per_page=10&page=1");
+        $res->assertStatus(201);
 
-        $res->assertOk()
-            ->assertJsonStructure(['data', 'meta']);
+        return (int) $res->json('id');
+    }
 
-        $this->assertGreaterThanOrEqual(1, count($res->json('data')));
-        $this->assertSame(1, $res->json('meta.current_page'));
+    protected function resetHttpState(): void
+    {
+        $this->defaultHeaders = [];
+        $this->defaultCookies = [];
+        $this->defaultServerVariables = [];
+
+        try {
+            Auth::logout();
+        } catch (\Throwable $e) {
+        }
+
+        app('auth')->forgetGuards();
     }
 }

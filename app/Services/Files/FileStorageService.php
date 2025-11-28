@@ -4,7 +4,8 @@ namespace App\Services\Files;
 
 use Illuminate\Http\UploadedFile;
 use RuntimeException;
-
+use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\URL;
 class FileStorageService
 {
 
@@ -24,8 +25,8 @@ class FileStorageService
         ?string $name = null
     ): string {
         $path = $name
-            ? $file->storeAs(!$disk || $disk === 'local' ? storage_path($dir) : $dir, $name, ['disk' => $disk])
-            : $file->store(!$disk || $disk === 'local' ? storage_path($dir) : $dir, ['disk' => $disk]);
+            ? $file->storeAs($dir, $name, $disk ?? config('filesystems.default'))
+            : $file->store($dir, $disk ?? config('filesystems.default'));
 
         if (!$path) {
             throw new RuntimeException('Failed to store file.');
@@ -34,5 +35,11 @@ class FileStorageService
         return $path;
     }
 
-
+    public function temporarySignedDownloadUrl(string $routeName, array $params, Carbon $expiresAt): array
+    {
+        return [
+            'url' => URL::temporarySignedRoute($routeName, $expiresAt, $params),
+            'expires_at' => $expiresAt->toAtomString(),
+        ];
+    }
 }

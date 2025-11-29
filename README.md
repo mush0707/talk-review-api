@@ -61,7 +61,7 @@ docker exec -it talkreview_app sh -lc "php artisan migrate --seed"
 docker exec -it talkreview_app sh -lc "php artisan elastic:migrate"
 ```
 
-6) (Optional) Storage symlink
+6) Storage symlink
 ```bash
 docker exec -it talkreview_app sh -lc "php artisan storage:link"
 ```

@@ -144,7 +144,7 @@ class NotificationEndpointsTest extends TestCase
         return is_array($json) ? $json : [];
     }
 
-    private function verifiedUserWithRole(string $role): User
+    private function verifiedUserWithRole(string $role)
     {
         $user = User::factory()->create(['email_verified_at' => now()]);
         $user->assignRole($role);
@@ -156,7 +156,6 @@ class NotificationEndpointsTest extends TestCase
         $user->notifications()->create([
             'id' => (string) Str::uuid(),
             // IMPORTANT: Laravel stores the notification class name here normally,
-            // but your API reads $notification->data['type'] anyway, so any string is OK.
             'type' => 'Tests\\DatabaseNotification',
             'data' => $data,
             'read_at' => $readAtIso,

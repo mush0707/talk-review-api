@@ -22,21 +22,27 @@ RUN docker-php-ext-install \
     opcache \
     pcntl \
     sockets
-RUN pecl install redis \
-    && docker-php-ext-enable redis
+
+RUN pecl install redis && docker-php-ext-enable redis
+
 # Composer
 COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
 
 WORKDIR /var/www/html
 
-# Create a non-root user (optional but good)
+# Create user/group (1000:1000)
 RUN addgroup -g 1000 www && adduser -G www -g www -s /bin/sh -D -u 1000 www
 
-# Permissions for Laravel runtime dirs
-RUN mkdir -p storage bootstrap/cache && \
-    chown -R www:www /var/www/html
+# php-fpm config override (logs to stderr + run workers as www)
+COPY ./docker/php-fpm.conf /usr/local/etc/php-fpm.conf
+COPY ./docker/php-fpm.d/www.conf /usr/local/etc/php-fpm.d/www.conf
 
-USER www
+# Entrypoint
+COPY ./docker/entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
 
-# Keep container running
-CMD ["php-fpm"]
+# ✅ IMPORTANT: do NOT switch USER here.
+# FPM master should start as root, but workers will run as www via pool config.
+
+ENTRYPOINT ["/entrypoint.sh"]
+CMD ["php-fpm", "-F"]
